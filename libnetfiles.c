@@ -57,7 +57,6 @@ int netclose(int file_desc){
 int netserverinit(char * hostname, int mode){
 	hints.ai_family = AF_INET; // IPv4 Address only
 	int status = getaddrinfo(hostname, NULL, &hints, &infoptr);
-
 	struct addrinfo * curr;
 	char host[256], service[256];
 
