@@ -41,9 +41,9 @@ ssize_t netwrite(int file_desc, const void *buff, size_t nbyte){
 	}
 }
 
-int netclose(int fd){
+int netclose(int file_desc){
 	
-	int result = close(fd);
+	int result = close(file_desc);
 
 	if (result == -1){
 		//fails, set errno and return -1
