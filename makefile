@@ -1,19 +1,15 @@
-#CC     =       cc
+#CC     =       cc -pthread
 CC      =       gcc
-FLAGS   =       -Wall -g
+FLAGS   =       -Wall -pthread -g
 COMPILE =       $(CC) $(FLAGS)
 
-all: compressT_LOLS compressR_LOLS tester
+all: server client
 
-compressT_LOLS: compressT_LOLS.c functions.c compress.h
-	$(COMPILE) -pthread -c functions.c compressT_LOLS.c
+server: libnetfiles.c netfileserver.c libnetfiles.h
+	$(COMPILE) libnetfiles.c netfileserver.c -o server
 
-compressR_LOLS: compressR_LOLS.c compressR_worker_LOLS.c functions.c compress.h
-	$(COMPILE) -c functions.c compressR_LOLS.c
-	$(COMPILE) functions.c compressR_worker_LOLS.c -o Worker 
-
-tester: tester.c functions.o compressT_LOLS.o compress.h
-	$(COMPILE) -pthread tester.c functions.o compressT_LOLS.o compressR_LOLS.o -o tester
+client: netfileclient.c libnetfiles.h
+	$(COMPILE) netfileclient.c -o client
 	
 clean:
-	rm -rf *.o Worker tester
+	rm -rf *.o server client

@@ -1,3 +1,6 @@
+#ifndef LIBNETFILES_H
+#define LIBNETFILES_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>//read, write
@@ -15,3 +18,5 @@ ssize_t netread(int, void *, size_t);
 ssize_t netwrite(int, const void *, size_t);
 int netclose(int);
 int netserverinit(char *);
+
+#endif
