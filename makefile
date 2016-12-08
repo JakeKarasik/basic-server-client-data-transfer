@@ -5,11 +5,11 @@ COMPILE =       $(CC) $(FLAGS)
 
 all: server client
 
-server: libnetfiles.c netfileserver.c libnetfiles.h
-	$(COMPILE) libnetfiles.c netfileserver.c -o server
+server: netfileserver.c
+	$(COMPILE) netfileserver.c -o server
 
-client: netfileclient.c libnetfiles.h
-	$(COMPILE) netfileclient.c -o client
+client: netfileclient.c libnetfiles.c libnetfiles.h
+	$(COMPILE) libnetfiles.c netfileclient.c -o client
 	
 clean:
 	rm -rf *.o server client
