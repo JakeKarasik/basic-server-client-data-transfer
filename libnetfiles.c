@@ -11,7 +11,7 @@ int netopen(const char * file, int flags){
 
 	} else {
 		//fails, set errno and return -1
-		perror("netopen failed:");
+		perror("netopen failed");
 		return -1;
 
 	}
@@ -28,7 +28,7 @@ ssize_t netread(int file_desc, void * buff, size_t nbyte){
 
 	} else {
 		//fails, set errno and return -1
-		perror("netread failed:");
+		perror("netread failed");
 		return -1;	
 
 	}
@@ -45,7 +45,7 @@ ssize_t netwrite(int file_desc, const void *buff, size_t nbyte){
 
 	} else {
 		//fails, set errno and return -1
-		perror("netwrite failed:");
+		perror("netwrite failed");
 		return -1;
 
 	}
@@ -58,7 +58,7 @@ int netclose(int file_desc){
 
 	if (result == -1){
 		//fails, set errno and return -1
-		perror("netclose failed:");
+		perror("netclose failed");
 		return -1;
 
 	} else {
@@ -69,10 +69,12 @@ int netclose(int file_desc){
 }
 
 int netserverinit(char * hostname, int mode){
-	struct addrinfo settings, * infoptr;
-	settings.ai_family = AF_INET; // IPv4 Address only
-	int status = getaddrinfo(hostname, NULL, &settings, &infoptr);
-	struct addrinfo * curr;
+	struct addrinfo hints, * infoptr, * curr;
+	memset(&hints, 0, sizeof(hints));//Zero out hints
+	hints.ai_family = AF_INET; // IPv4 Address only
+	hints.ai_socktype = SOCK_STREAM;
+
+	int status = getaddrinfo(hostname, NULL, &hints, &infoptr);
 	char host[256], service[256];
 	h_errno = 0;
 
@@ -83,12 +85,15 @@ int netserverinit(char * hostname, int mode){
 			getnameinfo(curr->ai_addr, curr->ai_addrlen, host, sizeof(host), service, sizeof(service), NI_NUMERICHOST);
 		}
 
+
+
 		freeaddrinfo(infoptr); //free memory from getnameinfo
 		return 0;
 
 	} else {
 		//failure
 		h_errno = HOST_NOT_FOUND;
+		freeaddrinfo(infoptr); //free memory from getnameinfo
 		return -1;
 
 	}

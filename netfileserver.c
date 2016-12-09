@@ -53,9 +53,9 @@ int main(int argc, char * argv[]){
 	gethostname(server_name, 99);
 
 	printf("Server running on %s:%d\n",server_name,PORT_NUM);
-	printf("Hit enter to close server.\n");
+	//printf("Hit enter to close server.\n");
 	
-	while (getchar() != '\n') {
+	while (1) {
 		accept_fd = accept(socket_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
 
 		if (accept_fd < 0) {
@@ -63,23 +63,25 @@ int main(int argc, char * argv[]){
 			exit(EXIT_FAILURE);
 		}
 
+		printf("Accepting connection...\n");
+
 		memset(buff,0,READ_SIZE); //Zero out buff
 
 		bytes_received = read(accept_fd,buff,READ_SIZE-1); //receive data from client
 		
 		if (bytes_received < 0) {
-			perror("ERROR reading from socket");
+			perror("Error reading from socket");
 			close(accept_fd);
 			exit(EXIT_FAILURE);
 		}
 
 		printf("bytes_received=%d,content=%s\n",bytes_received, buff);
 		
-		char * response = "Message received";
+		char * response = "1,Message received";
 		bytes_sent = write(accept_fd,response,strlen(response)+1);
 		
 		if (bytes_sent < 0) {
-			perror("ERROR writing to socket");
+			perror("Error writing to socket");
 			close(accept_fd);
 			exit(EXIT_FAILURE);
 		}
