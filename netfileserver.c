@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
+#include <fcntl.h>
 
 #define PORT_NUM 12345
 #define READ_SIZE 256
@@ -17,6 +18,7 @@ int main(int argc, char * argv[]){
 	int socket_fd, accept_fd, bind_response, listen_response, client_addr_len, bytes_received, bytes_sent;
 	struct sockaddr_in server_addr, client_addr;
 	char buff[READ_SIZE];
+	char response[READ_SIZE];
 
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0); //IPv4 connection, initial socket file descriptor
 
@@ -66,6 +68,7 @@ int main(int argc, char * argv[]){
 		printf("Accepting connection...\n");
 
 		memset(buff,0,READ_SIZE); //Zero out buff
+		memset(response,0,READ_SIZE);
 
 		bytes_received = read(accept_fd,buff,READ_SIZE-1); //receive data from client
 		
@@ -77,9 +80,27 @@ int main(int argc, char * argv[]){
 
 		printf("bytes_received=%d,content=%s\n",bytes_received, buff);
 		
-		char * response = "1,Message received";
+		//char * response = "1,Message received";
+		int fd = open("dummy.txt",O_RDWR);
+		int result;
+		switch (buff[0]-'0') {
+			case 0:
+				//read
+				printf("read request...\n");
+				result = read(fd,response,READ_SIZE-1);
+				break;
+			case 1:
+				//write
+				printf("write request...\n");
+				result = write(fd,&buff[2],strlen(&buff[2])+1);
+				break;
+			default:
+			break;
+		}
+
+		printf("result=%d\n",result);
 		bytes_sent = write(accept_fd,response,strlen(response)+1);
-		
+		close(fd);
 		if (bytes_sent < 0) {
 			perror("Error writing to socket");
 			close(accept_fd);
