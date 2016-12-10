@@ -2,14 +2,18 @@
 
 int main(int argc, char * argv[]){
 	
-	//int res = netserverinit("factory.cs.rutgers.edu",0);
-
-	//if (res == 0) {
+	int res = netserverinit("factory.cs.rutgers.edu",0);
+	if (res == 0) {
 		//successful connection
-		
-	//}
+		printf("Connection successful!\n");
+	}
+	int fd = netopen("dummy.txt", O_RDWR);
 
+	printf("fd=%d\n",fd);
 
+	netserverclose();
+	
+	/*
 	int socket_fil_des, numbytes;
 	struct sockaddr_in serv_addr;
 	struct hostent * server;
@@ -35,5 +39,6 @@ int main(int argc, char * argv[]){
          perror("ERROR reading from socket");
     printf("%s\n",buffer);
     close(socket_fil_des);
+    */
 	return 0;
 }

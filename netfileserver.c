@@ -10,7 +10,7 @@
 #include <netdb.h>
 #include <fcntl.h>
 
-#define PORT_NUM 12345
+#define PORT_NUM 20000
 #define READ_SIZE 256
 
 int main(int argc, char * argv[]){
@@ -80,27 +80,46 @@ int main(int argc, char * argv[]){
 
 		printf("bytes_received=%d,content=%s\n",bytes_received, buff);
 		
-		//char * response = "1,Message received";
-		int fd = open("dummy.txt",O_RDWR);
-		int result;
-		switch (buff[0]-'0') {
-			case 0:
-				//read
-				printf("read request...\n");
-				result = read(fd,response,READ_SIZE-1);
+		//RECEIVE FORMAT
+		//netopen(): "0,FLAG,FILENAME"
+		//netclose(): "1, FILE_DESCRIPTOR"
+		//netread(): "2, NUM_BYTES_TO_READ, FILE_DESCRIPTOR,"
+		//netwrite(): "3, NUM_BYTES_TO_WRITE, BYTES_TO_WRITE"
+
+		//SEND FORMAT
+		//netopen(): "S,FILE_DESCRIPTOR" or "F" //success or fail
+		//netclose(): 
+		//netread(): 
+		//netwrite(): 
+		switch (buff[0]) {
+			case '0': //open
+				;
+				printf("filename=|%s|,flag=|%c|\n",&buff[4],buff[2]);
+				int fd = open(&buff[4],buff[2]-'0');
+				printf("fd=%d\n",fd);
+				if (fd < 0) {
+					//failed to open
+					strcat(response,"F");
+				} else {
+					//successfully opened
+					snprintf(response, 32, "S,%d", fd); //file descriptor not bigger than 32 digits
+				}
+				bytes_sent = write(accept_fd,response,strlen(response)+1);
 				break;
-			case 1:
-				//write
-				printf("write request...\n");
-				result = write(fd,&buff[2],strlen(&buff[2])+1);
+			case '1': //close
+				
+				break;
+			case '2': //read
+
+				break;
+			case '3': //write
+
 				break;
 			default:
+				//invalid request
 			break;
 		}
 
-		printf("result=%d\n",result);
-		bytes_sent = write(accept_fd,response,strlen(response)+1);
-		close(fd);
 		if (bytes_sent < 0) {
 			perror("Error writing to socket");
 			close(accept_fd);

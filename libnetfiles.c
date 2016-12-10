@@ -1,9 +1,75 @@
 #include "libnetfiles.h"
 
-int netopen(const char * file, int flags){
-	
+int socket_fd = -1;
+
+/**
+    Used to open a file on the server from the client.
+
+    file: 		The file to open on the server
+   	flags: 		O_RDONLY | O_WRONLY | O_RDWR
+   
+    returns: 	The file descriptor, or -1 if an error occurred
+*/
+int netopen(const char * file, int flag){
+	int buff_size = strlen(file)+1+2+2;//filename + nullterm + 'operation,' + 'flag,'
+	char buff[buff_size];
+	int receive_data_size = 32;
+	char received_data[receive_data_size];
+	int file_desc = -1, bytes_sent, bytes_received;
+
+	if (socket_fd == -1) {
+		fprintf(stderr,"Error: Connection does not exist.");
+		return -1;
+	}
+
+	//Build message with format: "OPERATION,FLAG,FILENAME"
+	memset(&buff,0,buff_size);
+	strcat(buff,"0,"); //0 = open
+	char temp[3];
+	snprintf(temp, 3, "%d,", flag);
+	strcat(buff,temp);
+	strcat(buff,file);
+	buff[buff_size-1] = '\0';
+
 	errno = 0;
-	int file_desc = open(file, flags);
+	//Attempt to send message to server
+	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
+
+	//Data successfully sent
+	if (bytes_sent >= 0) {
+
+		received_data[receive_data_size-1] = '\0';
+
+		bytes_received = read(socket_fd,received_data,receive_data_size-1);
+		//printf("response=%s\n",received_data);
+
+		//Data successfully received
+	    if (bytes_received >= 0) {
+
+	    	//Receive message with format: "STATUS,FILE DESCRIPTOR"
+	    	//STATUS: F = fail, S = success
+
+	    	if (received_data[0] == 'S') {
+	    		file_desc = atoi(&received_data[2]);
+	    	} else if (received_data[0] == 'F') {
+	    		//fprintf(stderr, "Error: netopen() attempt to access non-existent file\n");
+	    	} else {
+	    		fprintf(stderr, "Error: netopen() invalid response from server.\n");
+	    		return -1;
+	    	}
+
+	    //Data not received
+	    } else {
+
+	    	fprintf(stderr, "Error: netopen failed to receive data from server.\n");
+	    
+	    }
+	//Data failed to send
+	} else {
+
+		fprintf(stderr, "Error: netopen failed to send data to the server.\n");
+	
+	}       
 
 	if (file_desc > -1){
 		
@@ -17,10 +83,19 @@ int netopen(const char * file, int flags){
 	}
 }
 
+/**
+    Used to read from a file on the server.
+
+    file_desc: 	The server file descriptor of the file to read
+   	buff: 		Buffer to store read data
+   	nbyte: 		Number of bytes to read
+
+    returns: 	A non-negative integer indicating the number of bytes actually read, or -1 if an error occurred
+*/
 ssize_t netread(int file_desc, void * buff, size_t nbyte){
 	
 	errno = 0;
-	ssize_t bytes_read = read(file_desc, buff, nbyte);
+	int bytes_read = 1;
 
 	if (bytes_read > -1){
 		
@@ -34,11 +109,20 @@ ssize_t netread(int file_desc, void * buff, size_t nbyte){
 	}
 }
 
-ssize_t netwrite(int file_desc, const void *buff, size_t nbyte){
+/**
+    Used to write to a file on the server.
+
+    file_desc: 	The server file descriptor of the file to write to
+   	buff: 		Buffer to write from
+   	nbyte: 		Number of bytes to write
+
+    returns: 	A non-negative integer indicating the number of bytes actually written, or -1 if an error occurred
+*/
+ssize_t netwrite(int file_desc, const void * buff, size_t nbyte){
 	
 	errno = 0;
-	int bytes_writ = write(file_desc, buff, nbyte);
-
+	
+	int bytes_writ = 1;
 	if (bytes_writ > -1){
 	
 		return bytes_writ;
@@ -51,11 +135,18 @@ ssize_t netwrite(int file_desc, const void *buff, size_t nbyte){
 	}
 }
 
+/**
+    Used to close a file on the server.
+
+    file_desc: 	The server file descriptor of the file to close
+
+    returns: 	0 if successful, or -1 if an error occurred
+*/
 int netclose(int file_desc){
 	
 	errno = 0;
-	int result = close(file_desc);
-
+	
+	int result = 0;
 	if (result == -1){
 		//fails, set errno and return -1
 		perror("netclose failed");
@@ -68,33 +159,75 @@ int netclose(int file_desc){
 	}
 }
 
+/**
+    Used to initialize connection to server and open socket.
+
+    hostname: 	The name or IP of the server to connect to
+    mode:		"unrestricted" | "exclusive" | "transaction"
+
+    returns: 	0 if successful, or -1 if an error occurred
+*/
 int netserverinit(char * hostname, int mode){
+	int connect_resp;
 	struct addrinfo hints, * infoptr, * curr;
+
 	memset(&hints, 0, sizeof(hints));//Zero out hints
 	hints.ai_family = AF_INET; // IPv4 Address only
 	hints.ai_socktype = SOCK_STREAM;
 
-	int status = getaddrinfo(hostname, NULL, &hints, &infoptr);
-	char host[256], service[256];
+	int status = getaddrinfo(hostname, NULL, &hints, &infoptr); //DNS Lookup
 	h_errno = 0;
 
+	//Success
 	if (status == 0) {
-		//success
 
-		for (curr = infoptr;curr!=NULL;curr=curr->ai_next) {
-			getnameinfo(curr->ai_addr, curr->ai_addrlen, host, sizeof(host), service, sizeof(service), NI_NUMERICHOST);
+		//Create socket
+		socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+		if (socket_fd < 0) {
+			perror("Error opening socket");
+			exit(EXIT_FAILURE);
 		}
 
+		//Loop through attempt to create connection
+		for (curr = infoptr;curr!=NULL;curr=curr->ai_next) {
 
+			((struct sockaddr_in *)curr->ai_addr)->sin_port = htons(PORT_NUM);
+			((struct sockaddr_in *)curr->ai_addr)->sin_family = AF_INET;
 
-		freeaddrinfo(infoptr); //free memory from getnameinfo
+			connect_resp = connect(socket_fd,(struct sockaddr *) curr->ai_addr,curr->ai_addrlen);
+			
+			if (connect_resp == 0) {
+				break;
+			}
+		}
+	
+		if (connect_resp < 0) {
+			perror("Error connecting");
+			exit(EXIT_FAILURE);
+		}
+		
+		//At this point ready to run other functions.
+		
+		freeaddrinfo(infoptr); //free memory from getaddrinfo
 		return 0;
 
+	//Failure
 	} else {
-		//failure
 		h_errno = HOST_NOT_FOUND;
-		freeaddrinfo(infoptr); //free memory from getnameinfo
+		freeaddrinfo(infoptr); //free memory from getaddrinfo
 		return -1;
 
+	}
+}
+
+int netserverclose() {
+	if (socket_fd > -1) {
+		close(socket_fd);
+		socket_fd = -1;
+		return 0;
+	} else {
+		fprintf(stderr,"Error: Socket already closed or never created.\n");
+		return -1;
 	}
 }

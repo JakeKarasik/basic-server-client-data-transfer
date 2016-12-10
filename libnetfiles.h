@@ -11,14 +11,17 @@
 #include <errno.h>//error messages
 #include <netdb.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
-#define PORT_NUM 12345 
+#define PORT_NUM 20000 
 #define READ_SIZE 256
+#define WRITE_SIZE 256
 
 int netopen(const char *, int);
 ssize_t netread(int, void *, size_t);
 ssize_t netwrite(int, const void *, size_t);
 int netclose(int);
 int netserverinit(char *, int);
+int netserverclose();
 
 #endif
