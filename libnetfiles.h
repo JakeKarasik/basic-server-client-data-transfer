@@ -22,6 +22,5 @@ ssize_t netread(int, void *, size_t);
 ssize_t netwrite(int, const void *, size_t);
 int netclose(int);
 int netserverinit(char *, int);
-int netserverclose();
 
 #endif

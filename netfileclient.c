@@ -8,15 +8,11 @@ int main(int argc, char * argv[]){
 		printf("Connection successful!\n");
 	}
 	int fd = netopen("dummy.txt", O_RDWR);
-	int fd2 = netopen("dummy.txt", O_RDWR);
+	int fd2 = netopen("dummdy.txt", O_RDWR);
 
 	int close_resp = netclose(fd);
 	int close_resp2 = netclose(fd2);
 
-	printf("fd=%d,close_resp=%d\n",fd,close_resp);
-
-	netserverclose();
-	
 	/*
 	int socket_fil_des, numbytes;
 	struct sockaddr_in serv_addr;

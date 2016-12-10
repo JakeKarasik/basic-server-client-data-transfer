@@ -1,6 +1,8 @@
 #include "libnetfiles.h"
 
-int socket_fd = -1;
+int can_connect = 0;
+struct sockaddr * server_addr;
+int addr_len;
 
 /**
     Used to open a file on the server from the client.
@@ -15,11 +17,11 @@ int netopen(const char * file, int flag){
 	char buff[buff_size];
 	int receive_data_size = 32;
 	char received_data[receive_data_size];
-	int file_desc = -1, bytes_sent, bytes_received;
+	int file_desc = -1, bytes_sent, bytes_received, connect_resp, socket_fd;
 	char status = 'F'; //fail by default
 
-	if (socket_fd == -1) {
-		fprintf(stderr,"Error: Connection does not exist.");
+	if (can_connect == 0) {
+		fprintf(stderr,"Error: netserverinit() must run successfully before netopen() can run.\n");
 		return -1;
 	}
 
@@ -36,6 +38,15 @@ int netopen(const char * file, int flag){
 	errno = 0;
 	h_errno = 0;
 
+	//Create socket and connect
+	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+	connect_resp = connect(socket_fd,server_addr,addr_len);
+
+	if (connect_resp < 0) {
+		perror("netopen() failed to connect");
+		exit(EXIT_FAILURE);
+	}
+
 	//Attempt to send message to server
 	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
 
@@ -46,7 +57,7 @@ int netopen(const char * file, int flag){
 		received_data[receive_data_size-1] = '\0';
 
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
-		printf("response=%s\n",received_data);
+		printf("response=|%s|\n",received_data);
 		status = received_data[0];
 
 		//Data successfully received
@@ -71,8 +82,9 @@ int netopen(const char * file, int flag){
 	    		
 	    		//printf("errno=%d,h_errno=%d\n",errno,h_errno);
 	    	} else {
+
 	    		fprintf(stderr, "Error: netopen() invalid response from server.\n");
-	    		return -1;
+	    	
 	    	}
 
 	    //Data not received
@@ -87,6 +99,9 @@ int netopen(const char * file, int flag){
 		fprintf(stderr, "Error: netopen() failed to send data to the server.\n");
 	
 	}       
+
+	//Close socket when done
+	close(socket_fd);
 
 	if (file_desc > -1){
 		
@@ -170,11 +185,11 @@ int netclose(int file_desc) {
 	char buff[buff_size];
 	int receive_data_size = 32;
 	char received_data[receive_data_size];
-	int bytes_sent, bytes_received;
+	int bytes_sent, bytes_received, connect_resp, socket_fd;
 	char status = 'F'; //fail by default
 
-	if (socket_fd == -1) {
-		fprintf(stderr,"Error: Connection does not exist.");
+	if (can_connect == 0) {
+		fprintf(stderr,"Error: netserverinit() must run successfully before netclose() can run.\n");
 		return -1;
 	}
 
@@ -190,6 +205,15 @@ int netclose(int file_desc) {
 	errno = 0;
 	h_errno = 0;
 	
+	//Create socket and connect
+	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+	connect_resp = connect(socket_fd,server_addr,addr_len);
+
+	if (connect_resp < 0) {
+		perror("netopen() failed to connect");
+		exit(EXIT_FAILURE);
+	}
+
 	//Attempt to send message to server
 	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
 
@@ -202,7 +226,6 @@ int netclose(int file_desc) {
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
 		printf("response=|%s|\n",received_data);
 		status = received_data[0];
-		printf("status=%c\n",status);
 
 		//Data successfully received
 	    if (bytes_received >= 0) {
@@ -226,8 +249,9 @@ int netclose(int file_desc) {
 	    		
 	    		//printf("errno=%d,h_errno=%d\n",errno,h_errno);
 	    	} else {
+
 	    		fprintf(stderr, "Error: netclose() invalid response from server.\n");
-	    		return -1;
+	
 	    	}
 
 	    //Data not received
@@ -242,6 +266,9 @@ int netclose(int file_desc) {
 		fprintf(stderr, "Error: netclose() failed to send data to the server.\n");
 	
 	}
+
+	//Close socket when done
+	close(socket_fd);
 
 	if (status == 'F'){
 		//fails, set errno and return -1
@@ -264,15 +291,19 @@ int netclose(int file_desc) {
     returns: 	0 if successful, or -1 if an error occurred
 */
 int netserverinit(char * hostname, int mode){
-	int connect_resp;
+	int connect_resp, socket_fd;
 	struct addrinfo hints, * infoptr, * curr;
 
 	memset(&hints, 0, sizeof(hints));//Zero out hints
 	hints.ai_family = AF_INET; // IPv4 Address only
 	hints.ai_socktype = SOCK_STREAM;
 
-	int status = getaddrinfo(hostname, NULL, &hints, &infoptr); //DNS Lookup
+	//Prepare for error check
 	h_errno = 0;
+	errno = 0;
+
+	int status = getaddrinfo(hostname, NULL, &hints, &infoptr); //DNS Lookup
+	
 
 	//Success
 	if (status == 0) {
@@ -304,7 +335,11 @@ int netserverinit(char * hostname, int mode){
 		}
 		
 		//At this point ready to run other functions.
-		
+		can_connect = 1;
+		server_addr = (struct sockaddr *) curr->ai_addr;
+		addr_len = curr->ai_addrlen;
+		close(socket_fd);
+
 		freeaddrinfo(infoptr); //free memory from getaddrinfo
 		return 0;
 
@@ -314,16 +349,5 @@ int netserverinit(char * hostname, int mode){
 		freeaddrinfo(infoptr); //free memory from getaddrinfo
 		return -1;
 
-	}
-}
-
-int netserverclose() {
-	if (socket_fd > -1) {
-		close(socket_fd);
-		socket_fd = -1;
-		return 0;
-	} else {
-		fprintf(stderr,"Error: Socket already closed or never created.\n");
-		return -1;
 	}
 }
