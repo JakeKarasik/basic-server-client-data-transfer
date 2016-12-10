@@ -14,8 +14,8 @@
 #include <arpa/inet.h>
 
 #define PORT_NUM 20000 
-#define READ_SIZE 256
-#define WRITE_SIZE 256
+#define READ_SIZE 512
+#define WRITE_SIZE 512
 
 int netopen(const char *, int);
 ssize_t netread(int, void *, size_t);

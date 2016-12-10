@@ -16,6 +16,7 @@ int netopen(const char * file, int flag){
 	int receive_data_size = 32;
 	char received_data[receive_data_size];
 	int file_desc = -1, bytes_sent, bytes_received;
+	char status = 'F'; //fail by default
 
 	if (socket_fd == -1) {
 		fprintf(stderr,"Error: Connection does not exist.");
@@ -25,34 +26,50 @@ int netopen(const char * file, int flag){
 	//Build message with format: "OPERATION,FLAG,FILENAME"
 	memset(&buff,0,buff_size);
 	strcat(buff,"0,"); //0 = open
-	char temp[3];
-	snprintf(temp, 3, "%d,", flag);
-	strcat(buff,temp);
+	char flag_buff[3];
+	snprintf(flag_buff, 3, "%d,", flag);
+	strcat(buff,flag_buff);
 	strcat(buff,file);
 	buff[buff_size-1] = '\0';
 
+	//Get ready to error check
 	errno = 0;
+	h_errno = 0;
+
 	//Attempt to send message to server
 	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
 
 	//Data successfully sent
 	if (bytes_sent >= 0) {
 
+		memset(received_data,0,receive_data_size);
 		received_data[receive_data_size-1] = '\0';
 
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
-		//printf("response=%s\n",received_data);
+		printf("response=%s\n",received_data);
+		status = received_data[0];
 
 		//Data successfully received
 	    if (bytes_received >= 0) {
 
-	    	//Receive message with format: "STATUS,FILE DESCRIPTOR"
+	    	//Receive message with format: "S,FILE_DESCRIPTOR" or "F,ERRNO,H_ERRNO"
 	    	//STATUS: F = fail, S = success
 
-	    	if (received_data[0] == 'S') {
+	    	if (status == 'S') {
+
 	    		file_desc = atoi(&received_data[2]);
-	    	} else if (received_data[0] == 'F') {
-	    		//fprintf(stderr, "Error: netopen() attempt to access non-existent file\n");
+
+	    	} else if (status == 'F') {
+
+	    		char * part = strtok(received_data, ",");
+	    		
+	    		part = strtok(NULL, ",");
+	    		errno = atoi(part);
+	    		
+	    		part = strtok(NULL, ",");
+				h_errno = atoi(part);
+	    		
+	    		//printf("errno=%d,h_errno=%d\n",errno,h_errno);
 	    	} else {
 	    		fprintf(stderr, "Error: netopen() invalid response from server.\n");
 	    		return -1;
@@ -61,13 +78,13 @@ int netopen(const char * file, int flag){
 	    //Data not received
 	    } else {
 
-	    	fprintf(stderr, "Error: netopen failed to receive data from server.\n");
+	    	fprintf(stderr, "Error: netopen() failed to receive data from server.\n");
 	    
 	    }
 	//Data failed to send
 	} else {
 
-		fprintf(stderr, "Error: netopen failed to send data to the server.\n");
+		fprintf(stderr, "Error: netopen() failed to send data to the server.\n");
 	
 	}       
 
@@ -76,8 +93,8 @@ int netopen(const char * file, int flag){
 		return file_desc;
 
 	} else {
-		//fails, set errno and return -1
-		perror("netopen failed");
+		//fails, return -1
+		perror("netopen() failed");
 		return -1;
 
 	}
@@ -94,7 +111,10 @@ int netopen(const char * file, int flag){
 */
 ssize_t netread(int file_desc, void * buff, size_t nbyte){
 	
+	//Get ready to error check
 	errno = 0;
+	h_errno = 0;
+
 	int bytes_read = 1;
 
 	if (bytes_read > -1){
@@ -103,7 +123,7 @@ ssize_t netread(int file_desc, void * buff, size_t nbyte){
 
 	} else {
 		//fails, set errno and return -1
-		perror("netread failed");
+		perror("netread() failed");
 		return -1;	
 
 	}
@@ -120,7 +140,9 @@ ssize_t netread(int file_desc, void * buff, size_t nbyte){
 */
 ssize_t netwrite(int file_desc, const void * buff, size_t nbyte){
 	
+	//Get ready to error check
 	errno = 0;
+	h_errno = 0;
 	
 	int bytes_writ = 1;
 	if (bytes_writ > -1){
@@ -129,7 +151,7 @@ ssize_t netwrite(int file_desc, const void * buff, size_t nbyte){
 
 	} else {
 		//fails, set errno and return -1
-		perror("netwrite failed");
+		perror("netwrite() failed");
 		return -1;
 
 	}
@@ -142,14 +164,88 @@ ssize_t netwrite(int file_desc, const void * buff, size_t nbyte){
 
     returns: 	0 if successful, or -1 if an error occurred
 */
-int netclose(int file_desc){
-	
+int netclose(int file_desc) {
+	int file_desc_length = snprintf(NULL, 0, "%d", file_desc);
+	int buff_size = 1 + 2 + file_desc_length;//nullterm + 'operation,' + file_descriptor
+	char buff[buff_size];
+	int receive_data_size = 32;
+	char received_data[receive_data_size];
+	int bytes_sent, bytes_received;
+	char status = 'F'; //fail by default
+
+	if (socket_fd == -1) {
+		fprintf(stderr,"Error: Connection does not exist.");
+		return -1;
+	}
+
+	//Build message with format: "OPERATION,FLAG,FILENAME"
+	memset(&buff,0,buff_size);
+	strcat(buff,"1,"); //1 = close
+	char file_desc_buff[file_desc_length+1];
+	snprintf(file_desc_buff, file_desc_length+1, "%d,", file_desc);
+	strcat(buff,file_desc_buff);
+	buff[buff_size-1] = '\0';
+
+	//Get ready to error check
 	errno = 0;
+	h_errno = 0;
 	
-	int result = 0;
-	if (result == -1){
+	//Attempt to send message to server
+	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
+
+	//Data successfully sent
+	if (bytes_sent >= 0) {
+
+		memset(received_data,0,receive_data_size);
+		received_data[receive_data_size-1] = '\0';
+
+		bytes_received = read(socket_fd,received_data,receive_data_size-1);
+		printf("response=|%s|\n",received_data);
+		status = received_data[0];
+		printf("status=%c\n",status);
+
+		//Data successfully received
+	    if (bytes_received >= 0) {
+
+	    	//Receive message with format: "S" or "F,ERRNO,H_ERRNO"
+	    	//STATUS: F = fail, S = success
+
+	    	if (status == 'S') {
+
+	    		file_desc = atoi(&received_data[2]);
+
+	    	} else if (status == 'F') {
+
+	    		char * part = strtok(received_data, ",");
+	    		
+	    		part = strtok(NULL, ",");
+	    		errno = atoi(part);
+	    		
+	    		part = strtok(NULL, ",");
+				h_errno = atoi(part);
+	    		
+	    		//printf("errno=%d,h_errno=%d\n",errno,h_errno);
+	    	} else {
+	    		fprintf(stderr, "Error: netclose() invalid response from server.\n");
+	    		return -1;
+	    	}
+
+	    //Data not received
+	    } else {
+
+	    	fprintf(stderr, "Error: netclose() failed to receive data from server.\n");
+	    
+	    }
+	//Data failed to send
+	} else {
+
+		fprintf(stderr, "Error: netclose() failed to send data to the server.\n");
+	
+	}
+
+	if (status == 'F'){
 		//fails, set errno and return -1
-		perror("netclose failed");
+		perror("netclose() failed");
 		return -1;
 
 	} else {

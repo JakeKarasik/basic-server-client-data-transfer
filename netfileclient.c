@@ -8,8 +8,12 @@ int main(int argc, char * argv[]){
 		printf("Connection successful!\n");
 	}
 	int fd = netopen("dummy.txt", O_RDWR);
+	int fd2 = netopen("dummy.txt", O_RDWR);
 
-	printf("fd=%d\n",fd);
+	int close_resp = netclose(fd);
+	int close_resp2 = netclose(fd2);
+
+	printf("fd=%d,close_resp=%d\n",fd,close_resp);
 
 	netserverclose();
 	
