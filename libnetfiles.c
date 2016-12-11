@@ -40,6 +40,12 @@ int netopen(const char * file, int flag){
 
 	//Create socket and connect
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (socket_fd < 0) {
+		perror("Error opening socket with netopen()");
+		exit(EXIT_FAILURE);
+	}
+
 	connect_resp = connect(socket_fd,server_addr,addr_len);
 
 	if (connect_resp < 0) {
@@ -124,17 +130,130 @@ int netopen(const char * file, int flag){
 
     returns: 	A non-negative integer indicating the number of bytes actually read, or -1 if an error occurred
 */
-ssize_t netread(int file_desc, void * buff, size_t nbyte){
+ssize_t netread(int file_desc, void * output, size_t nbyte){
 	
+	int file_desc_length = snprintf(NULL, 0, "%d", file_desc);
+	int nbyte_length = snprintf(NULL, 0, "%d", (int)nbyte);
+	int buff_size = file_desc_length + 1 + 2 + 1 + nbyte_length;// file_desc + operation + commas + nullterm + numbytes
+	char buff[buff_size];
+	int receive_data_size = nbyte + nbyte_length + 1 + 1 + 2; //bytes + bytesread + null term + s or f + 2 commas
+	char received_data[receive_data_size];
+	int bytes_sent, bytes_received, connect_resp, socket_fd,bytes_read_from_server;
+	char status = 'F'; //fail by default
+	char * part;
+
+	if (can_connect == 0) {
+		fprintf(stderr,"Error: netserverinit() must run successfully before netread() can run.\n");
+		return -1;
+	}
+
+	//zero output
+	memset(output,0,nbyte);
+
+	//Build message with format: "OPERATION,FILE_DESC,NUMBER_OF_BYTES"
+	memset(&buff,0,buff_size);
+	strcat(buff,"2,"); //2 = read
+	char file_desc_buff[file_desc_length+1];
+	snprintf(file_desc_buff, file_desc_length+1, "%d", file_desc);
+	strcat(buff,file_desc_buff);
+	strcat(buff,",");
+	char nbyte_buff[nbyte_length+1];
+	snprintf(nbyte_buff, nbyte_length+1, "%d", (int)nbyte);
+	strcat(buff,nbyte_buff);
+	buff[buff_size-1] = '\0';
+
 	//Get ready to error check
 	errno = 0;
 	h_errno = 0;
 
-	int bytes_read = 1;
+	//Create socket and connect
+	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (bytes_read > -1){
+	if (socket_fd < 0) {
+		perror("Error opening socket with netread()");
+		exit(EXIT_FAILURE);
+	}
+
+	connect_resp = connect(socket_fd,server_addr,addr_len);
+
+	if (connect_resp < 0) {
+		perror("netread() failed to connect");
+		exit(EXIT_FAILURE);
+	}
+
+	//Attempt to send message to server
+	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
+
+	//Data successfully sent
+	if (bytes_sent >= 0) {
+
+		memset(received_data,0,receive_data_size);
+		received_data[receive_data_size-1] = '\0';
+
+		bytes_received = read(socket_fd,received_data,receive_data_size-1);
+		printf("response=|%s|\n",received_data);
+		status = received_data[0];
+
+		//Data successfully received
+	    if (bytes_received >= 0) {
+	    	//Receive message with format: "S,NUM_BYTES,CONTENT" or "F,ERRNO,H_ERRNO"
+	    	//STATUS: F = fail, S = success
+
+	    	if (status == 'S') {
+
+	    		part = strtok(received_data, ",");
+	    		
+	    		part = strtok(NULL, ",");
+	    		bytes_read_from_server = atoi(part);
+	    		
+	    		part = strtok(NULL, ",");
+
+	    		if (bytes_read_from_server > nbyte) {
+
+	    			fprintf(stderr,"Error: netread() more bytes read than requested.\n");
+
+	    		} else {
+	    			
+	    			memcpy(output, part, bytes_read_from_server);
+
+	    		}
+
+	    	} else if (status == 'F') {
+
+	    		part = strtok(received_data, ",");
+	    		
+	    		part = strtok(NULL, ",");
+	    		errno = atoi(part);
+	    		
+	    		part = strtok(NULL, ",");
+				h_errno = atoi(part);
+	    		
+	    		//printf("errno=%d,h_errno=%d\n",errno,h_errno);
+	    	} else {
+
+	    		fprintf(stderr, "Error: netread() invalid response from server.\n");
+	    	
+	    	}
+
+	    //Data not received
+	    } else {
+
+	    	fprintf(stderr, "Error: netread() failed to receive data from server.\n");
+	    
+	    }
+	//Data failed to send
+	} else {
+
+		fprintf(stderr, "Error: netread() failed to send data to the server.\n");
+	
+	}       
+
+	//Close socket when done
+	close(socket_fd);
+
+	if (status == 'S'){
 		
-		return bytes_read;
+		return bytes_read_from_server;
 
 	} else {
 		//fails, set errno and return -1
@@ -153,21 +272,132 @@ ssize_t netread(int file_desc, void * buff, size_t nbyte){
 
     returns: 	A non-negative integer indicating the number of bytes actually written, or -1 if an error occurred
 */
-ssize_t netwrite(int file_desc, const void * buff, size_t nbyte){
+ssize_t netwrite(int file_desc, const void * input, size_t nbyte){
 	
+	int file_desc_length = snprintf(NULL, 0, "%d", file_desc);
+	int nbyte_length = snprintf(NULL, 0, "%d", (int)nbyte);
+	int buff_size = file_desc_length + 1 + 3 + 1 + nbyte_length + nbyte;// file_desc + operation + 3 commas + nullterm + numbytes + numbyte_len
+	char buff[buff_size];
+	int receive_data_size = nbyte_length + 1 + 1 + 2; //bytes_length + null term + s or f + 2 commas
+	char received_data[receive_data_size];
+	int bytes_sent, bytes_received, connect_resp, socket_fd,bytes_written_to_server;
+	char status = 'F'; //fail by default
+	char * part;
+
+	if (can_connect == 0) {
+		fprintf(stderr,"Error: netserverinit() must run successfully before netwrite() can run.\n");
+		return -1;
+	}
+
+	//Build message with format: "OPERATION,FILE_DESC,NUMBER_OF_BYTES,CONTENT"
+	memset(&buff,0,buff_size);
+	strcat(buff,"3,"); //3 = write
+	char file_desc_buff[file_desc_length+1];
+	snprintf(file_desc_buff, file_desc_length+1, "%d", file_desc);
+	strcat(buff,file_desc_buff);
+	strcat(buff,",");
+	char nbyte_buff[nbyte_length+1];
+	snprintf(nbyte_buff, nbyte_length+1, "%d", (int)nbyte);
+	strcat(buff,nbyte_buff);
+	strcat(buff,",");
+	char temp[nbyte+1];
+	temp[nbyte] = '\0';
+	memcpy(temp,input,nbyte);
+	strcat(buff,temp);
+	buff[buff_size-1] = '\0';
+
 	//Get ready to error check
 	errno = 0;
 	h_errno = 0;
+
+	//Create socket and connect
+	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (socket_fd < 0) {
+		perror("Error opening socket with netwrite()");
+		exit(EXIT_FAILURE);
+	}
+
+	connect_resp = connect(socket_fd,server_addr,addr_len);
+
+	if (connect_resp < 0) {
+		perror("netwrite() failed to connect");
+		exit(EXIT_FAILURE);
+	}
+
+	//Attempt to send message to server
+	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
+
+	//Data successfully sent
+	if (bytes_sent >= 0) {
+
+		memset(received_data,0,receive_data_size);
+		received_data[receive_data_size-1] = '\0';
+
+		bytes_received = read(socket_fd,received_data,receive_data_size-1);
+		printf("response=|%s|\n",received_data);
+		status = received_data[0];
+
+		//Data successfully received
+	    if (bytes_received >= 0) {
+	    	//Receive message with format: "S,NUM_BYTES_WRITTEN" or "F,ERRNO,H_ERRNO"
+	    	//STATUS: F = fail, S = success
+
+	    	if (status == 'S') {
+
+	    		part = strtok(received_data, ",");
+	    		
+	    		part = strtok(NULL, ",");
+	    		bytes_written_to_server = atoi(part);
+	    		
+
+	    		if (bytes_written_to_server > nbyte) {
+
+	    			fprintf(stderr,"Error: netwrite() more bytes read than requested.\n");
+
+	    		}
+
+	    	} else if (status == 'F') {
+
+	    		part = strtok(received_data, ",");
+	    		
+	    		part = strtok(NULL, ",");
+	    		errno = atoi(part);
+	    		
+	    		part = strtok(NULL, ",");
+				h_errno = atoi(part);
+	    		
+	    		//printf("errno=%d,h_errno=%d\n",errno,h_errno);
+	    	} else {
+
+	    		fprintf(stderr, "Error: netwrite() invalid response from server.\n");
+	    	
+	    	}
+
+	    //Data not received
+	    } else {
+
+	    	fprintf(stderr, "Error: netwrite() failed to receive data from server.\n");
+	    
+	    }
+	//Data failed to send
+	} else {
+
+		fprintf(stderr, "Error: netwrite() failed to send data to the server.\n");
 	
-	int bytes_writ = 1;
-	if (bytes_writ > -1){
-	
-		return bytes_writ;
+	}       
+
+	//Close socket when done
+	close(socket_fd);
+
+	if (status == 'S'){
+		
+		return bytes_written_to_server;
 
 	} else {
 		//fails, set errno and return -1
 		perror("netwrite() failed");
-		return -1;
+		return -1;	
 
 	}
 }
@@ -207,6 +437,12 @@ int netclose(int file_desc) {
 	
 	//Create socket and connect
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (socket_fd < 0) {
+		perror("Error opening socket with netclose()");
+		exit(EXIT_FAILURE);
+	}
+
 	connect_resp = connect(socket_fd,server_addr,addr_len);
 
 	if (connect_resp < 0) {

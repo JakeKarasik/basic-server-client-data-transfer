@@ -20,8 +20,8 @@ typedef struct data_ {
 	char * filename;
 	int flag;
 	int file_desc;
-	int bytes_to_read;
-	int bytes_to_write;
+	int num_bytes;
+	char * bytes;
 } data;
 
 void * thread_worker(data * request_data) {
@@ -81,10 +81,66 @@ void * thread_worker(data * request_data) {
 				bytes_sent = write(request_data->client_fd,response,strlen(response)+1);
 				break;
 			case '2': //read
+				;
 
+				int bytes_to_read_length = snprintf(NULL, 0, "%d", request_data->num_bytes);
+				int read_size = request_data->num_bytes;
+				char * read_buffer = malloc(read_size+1);//nbytes + S + 2 commas + content + nullterm
+				char * success_buff = malloc(read_size +2+bytes_to_read_length+1 +1);
+				memset(read_buffer,0,read_size+1);
+				read_buffer[read_size] = '\0';
+				memset(success_buff,0,read_size +2+bytes_to_read_length+1 +1);
+				success_buff[read_size +2+bytes_to_read_length+1] = '\0';
+
+				ssize_t read_resp = read(request_data->file_desc,read_buffer,request_data->num_bytes);
+
+				if (read_resp < 0) {
+					//failed to read
+					strcat(response,"F,");
+					snprintf(errno_buff, 4, "%d", errno); //max errno digits = 3 + null term
+					snprintf(h_errno_buff, 4, "%d", h_errno); //max errno digits = 3 + null term
+					strcat(response, errno_buff);
+					strcat(response, ",");
+					strcat(response, h_errno_buff);
+					bytes_sent = write(request_data->client_fd,response,strlen(response)+1);
+				} else {
+					//successfully read
+					strcat(success_buff,"S,");
+					char bytes_to_read_buff[bytes_to_read_length];
+					snprintf(bytes_to_read_buff, bytes_to_read_length+1, "%d", request_data->num_bytes);
+					strcat(success_buff,bytes_to_read_buff);
+					strcat(success_buff,",");
+					strcat(success_buff,read_buffer);
+					
+					bytes_sent = write(request_data->client_fd,success_buff,request_data->num_bytes+1+2+bytes_to_read_length+1); //bytes + S + 2 commas + bytestoread + nullterm
+				}
+				free(read_buffer);
+				free(success_buff);
 				break;
 			case '3': //write
+				;
 
+				ssize_t write_resp = write(request_data->file_desc,request_data->bytes,request_data->num_bytes);
+
+				if (write_resp < 0) {
+					//failed to write
+					strcat(response,"F,");
+					snprintf(errno_buff, 4, "%d", errno); //max errno digits = 3 + null term
+					snprintf(h_errno_buff, 4, "%d", h_errno); //max errno digits = 3 + null term
+					strcat(response, errno_buff);
+					strcat(response, ",");
+					strcat(response, h_errno_buff);
+				} else {
+					//successfully wrote
+					strcat(response, "S,");
+					int bytes_to_write_length = snprintf(NULL, 0, "%d", (int)write_resp);
+					char bytes_to_write_buff[bytes_to_write_length];
+					snprintf(bytes_to_write_buff, bytes_to_write_length+1, "%d", (int)write_resp);
+					strcat(response,bytes_to_write_buff);
+				}
+
+				bytes_sent = write(request_data->client_fd,response,strlen(response)+1);
+				free(request_data->bytes);
 				break;
 			default:
 				//invalid request
@@ -172,13 +228,13 @@ int main(int argc, char * argv[]){
 		//netopen(): "0,FLAG,FILENAME"
 		//netclose(): "1, FILE_DESCRIPTOR"
 		//netread(): "2, FILE_DESCRIPTOR, NUM_BYTES_TO_READ"
-		//netwrite(): "3, BYTES_TO_WRITE, NUM_BYTES_TO_WRITE"
+		//netwrite(): "3, FILE_DESCRIPTOR, NUM_BYTES_TO_WRITE, BYTES_TO_WRITE"
 
 		//SEND FORMAT
 		//netopen(): "S,FILE_DESCRIPTOR" or "F,ERRNO,H_ERRNO" //success or fail
 		//netclose(): "S" or "F,ERRNO,H_ERRNO" //success or fail
-		//netread(): 
-		//netwrite():
+		//netread():  "S,NUM_BYTES_READ,CONTENT" or "F,ERRNO,H_ERRNO" //success or fail
+		//netwrite(): "S,NUM_BYTES_WRITTEN" or "F,ERRNO,H_ERRNO" //success or fail
 
 		
 		data * thread_data = malloc(sizeof(data));
@@ -208,7 +264,7 @@ int main(int argc, char * argv[]){
 	    		thread_data->file_desc = atoi(part);
 	    		
 	    		part = strtok(NULL, ",");
-				thread_data->bytes_to_read = atoi(part);
+				thread_data->num_bytes = atoi(part);
 				break;
 			case '3': //write
 				part = strtok(buff, ",");
@@ -217,7 +273,13 @@ int main(int argc, char * argv[]){
 	    		thread_data->file_desc = atoi(part);
 	    		
 	    		part = strtok(NULL, ",");
-				thread_data->bytes_to_write = atoi(part);
+	    		thread_data->bytes = malloc(strlen(part)+1);
+				thread_data->num_bytes = atoi(part);
+
+				part = strtok(NULL, ",");
+				memset(thread_data->bytes,0,thread_data->num_bytes);
+				thread_data->bytes[thread_data->num_bytes+1] = '\0';
+				memcpy(thread_data->bytes,part,thread_data->num_bytes+1);
 				break;
 			default:
 				//invalid request

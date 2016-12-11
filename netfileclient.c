@@ -7,11 +7,16 @@ int main(int argc, char * argv[]){
 		//successful connection
 		printf("Connection successful!\n");
 	}
+	char buff[10];
+	buff[9] = '\0';
+	
 	int fd = netopen("dummy.txt", O_RDWR);
-	int fd2 = netopen("dummdy.txt", O_RDWR);
-
-	int close_resp = netclose(fd);
-	int close_resp2 = netclose(fd2);
+	//int fd2 = netopen("dummdy.txt", O_RDWR);
+	netread(fd, buff, 8);
+	netwrite(fd, " is an immortal god of the high empire of novogrond", 20);
+	netclose(fd);
+	
+	//int close_resp2 = netclose(fd2);
 
 	/*
 	int socket_fil_des, numbytes;
