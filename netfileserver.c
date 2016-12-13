@@ -11,7 +11,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-#define PORT_NUM 20000
+#define PORT_NUM 20001
 #define READ_SIZE 512
 
 typedef struct data_ {
@@ -93,7 +93,7 @@ void * thread_worker(data * request_data) {
 				success_buff[read_size +2+bytes_to_read_length+1] = '\0';
 
 				ssize_t read_resp = read(request_data->file_desc,read_buffer,request_data->num_bytes);
-
+				printf("read_resp=%d\n",(int)read_resp);
 				if (read_resp < 0) {
 					//failed to read
 					strcat(response,"F,");
@@ -107,7 +107,7 @@ void * thread_worker(data * request_data) {
 					//successfully read
 					strcat(success_buff,"S,");
 					char bytes_to_read_buff[bytes_to_read_length];
-					snprintf(bytes_to_read_buff, bytes_to_read_length+1, "%d", request_data->num_bytes);
+					snprintf(bytes_to_read_buff, bytes_to_read_length+1, "%d", (int)read_resp);
 					strcat(success_buff,bytes_to_read_buff);
 					strcat(success_buff,",");
 					strcat(success_buff,read_buffer);

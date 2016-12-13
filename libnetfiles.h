@@ -13,7 +13,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT_NUM 20000 
+#define PORT_NUM 20001 
 #define READ_SIZE 512
 #define WRITE_SIZE 512
 

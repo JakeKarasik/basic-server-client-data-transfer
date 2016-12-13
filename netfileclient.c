@@ -13,7 +13,8 @@ int main(int argc, char * argv[]){
 	int fd = netopen("dummy.txt", O_RDWR);
 	//int fd2 = netopen("dummdy.txt", O_RDWR);
 	netread(fd, buff, 8);
-	netwrite(fd, " is an immortal god of the high empire of novogrond", 20);
+	netwrite(fd, "jdk im the best", 5);
+	
 	netclose(fd);
 	
 	//int close_resp2 = netclose(fd2);
