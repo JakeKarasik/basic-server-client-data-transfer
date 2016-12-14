@@ -13,9 +13,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT_NUM 20001 
-#define READ_SIZE 512
-#define WRITE_SIZE 512
+#define PORT_NUM 15151
 
 int netopen(const char *, int);
 ssize_t netread(int, void *, size_t);

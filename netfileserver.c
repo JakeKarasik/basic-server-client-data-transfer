@@ -11,8 +11,8 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-#define PORT_NUM 20001
-#define READ_SIZE 512
+#define PORT_NUM 15151
+#define READ_SIZE 4096 //max write size
 
 typedef struct data_ {
 	int client_fd;
@@ -26,10 +26,10 @@ typedef struct data_ {
 
 void * thread_worker(data * request_data) {
 	int errno_max_digits = 3, bytes_sent;
-	char response[READ_SIZE];
+	char response[READ_SIZE/2];
 
-	memset(response,0,READ_SIZE);
-	response[READ_SIZE-1] = '\0';
+	memset(response,0,READ_SIZE/2);
+	response[(READ_SIZE/2)-1] = '\0';
 
 	//Get ready to error check
 		errno = 0;
@@ -85,15 +85,13 @@ void * thread_worker(data * request_data) {
 
 				int bytes_to_read_length = snprintf(NULL, 0, "%d", request_data->num_bytes);
 				int read_size = request_data->num_bytes;
-				char * read_buffer = malloc(read_size+1);//nbytes + S + 2 commas + content + nullterm
+				void * read_buffer = malloc(read_size);//bytes
 				char * success_buff = malloc(read_size +2+bytes_to_read_length+1 +1);
-				memset(read_buffer,0,read_size+1);
-				read_buffer[read_size] = '\0';
-				memset(success_buff,0,read_size +2+bytes_to_read_length+1 +1);
-				success_buff[read_size +2+bytes_to_read_length+1] = '\0';
+				memset(read_buffer,0,read_size);
+				memset(success_buff,0,read_size + 2 + bytes_to_read_length + 1 + 1);
 
 				ssize_t read_resp = read(request_data->file_desc,read_buffer,request_data->num_bytes);
-				printf("read_resp=%d\n",(int)read_resp);
+				//printf("read_resp=%d\n",(int)read_resp);
 				if (read_resp < 0) {
 					//failed to read
 					strcat(response,"F,");
@@ -110,8 +108,11 @@ void * thread_worker(data * request_data) {
 					snprintf(bytes_to_read_buff, bytes_to_read_length+1, "%d", (int)read_resp);
 					strcat(success_buff,bytes_to_read_buff);
 					strcat(success_buff,",");
-					strcat(success_buff,read_buffer);
+					//strcat(success_buff,read_buffer);
+					memcpy(&success_buff[read_size + 2 + bytes_to_read_length + 1 + 1 - read_resp],read_buffer,(int)read_resp);
 					
+					//printf("int serv=%d\n",*(int *)((read_buffer)));
+					//printf("success_buff=%s\n",success_buff);
 					bytes_sent = write(request_data->client_fd,success_buff,request_data->num_bytes+1+2+bytes_to_read_length+1); //bytes + S + 2 commas + bytestoread + nullterm
 				}
 				free(read_buffer);
@@ -212,9 +213,9 @@ int main(int argc, char * argv[]){
 		printf("Accepting connection...\n");
 
 		memset(buff,0,READ_SIZE); //Zero out buff and response
-		buff[READ_SIZE-1] = '\0';
+		//buff[READ_SIZE-1] = '\0';
 
-		bytes_received = read(accept_fd,buff,READ_SIZE-1); //receive data from client
+		bytes_received = read(accept_fd,buff,READ_SIZE); //receive data from client
 		
 		if (bytes_received < 0) {
 			perror("Error reading from socket");
@@ -228,12 +229,12 @@ int main(int argc, char * argv[]){
 		//netopen(): "0,FLAG,FILENAME"
 		//netclose(): "1, FILE_DESCRIPTOR"
 		//netread(): "2, FILE_DESCRIPTOR, NUM_BYTES_TO_READ"
-		//netwrite(): "3, FILE_DESCRIPTOR, NUM_BYTES_TO_WRITE, BYTES_TO_WRITE"
+		//netwrite(): "3, FILE_DESCRIPTOR, NUM_BYTES_TO_WRITE,"BYTES_TO_WRITE
 
 		//SEND FORMAT
 		//netopen(): "S,FILE_DESCRIPTOR" or "F,ERRNO,H_ERRNO" //success or fail
 		//netclose(): "S" or "F,ERRNO,H_ERRNO" //success or fail
-		//netread():  "S,NUM_BYTES_READ,CONTENT" or "F,ERRNO,H_ERRNO" //success or fail
+		//netread():  "S,NUM_BYTES_READ,"CONTENT or "F,ERRNO,H_ERRNO" //success or fail
 		//netwrite(): "S,NUM_BYTES_WRITTEN" or "F,ERRNO,H_ERRNO" //success or fail
 
 		
@@ -247,6 +248,7 @@ int main(int argc, char * argv[]){
 		int file_desc;
 		int bytes_to_read;
 		int bytes_to_write;
+		int mode;
 	*/
 		switch (thread_data->operation) {
 			case '0': //open
@@ -273,13 +275,14 @@ int main(int argc, char * argv[]){
 	    		thread_data->file_desc = atoi(part);
 	    		
 	    		part = strtok(NULL, ",");
-	    		thread_data->bytes = malloc(strlen(part)+1);
+	    		thread_data->bytes = malloc(atoi(part));
 				thread_data->num_bytes = atoi(part);
 
-				part = strtok(NULL, ",");
+				//part = strtok(NULL, ",");
+				//printf("part=%s\n",part);
 				memset(thread_data->bytes,0,thread_data->num_bytes);
-				thread_data->bytes[thread_data->num_bytes+1] = '\0';
-				memcpy(thread_data->bytes,part,thread_data->num_bytes+1);
+				memcpy(thread_data->bytes,&buff[bytes_received-thread_data->num_bytes],thread_data->num_bytes);
+				//printf("int=%d\n",*(int *)((thread_data->bytes)));
 				break;
 			default:
 				//invalid request

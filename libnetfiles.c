@@ -63,7 +63,7 @@ int netopen(const char * file, int flag){
 		received_data[receive_data_size-1] = '\0';
 
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
-		printf("response=|%s|\n",received_data);
+		//printf("response=|%s|\n",received_data);
 		status = received_data[0];
 
 		//Data successfully received
@@ -191,7 +191,7 @@ ssize_t netread(int file_desc, void * output, size_t nbyte){
 		received_data[receive_data_size-1] = '\0';
 
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
-		printf("response=|%s|\n",received_data);
+		//printf("response=|%s|\n",received_data);
 		status = received_data[0];
 
 		//Data successfully received
@@ -206,7 +206,7 @@ ssize_t netread(int file_desc, void * output, size_t nbyte){
 	    		part = strtok(NULL, ",");
 	    		bytes_read_from_server = atoi(part);
 	    		
-	    		part = strtok(NULL, ",");
+	    		//part = strtok(NULL, ",");
 
 	    		if (bytes_read_from_server > nbyte) {
 
@@ -214,7 +214,8 @@ ssize_t netread(int file_desc, void * output, size_t nbyte){
 
 	    		} else {
 	    			
-	    			memcpy(output, part, bytes_read_from_server);
+	    			//printf("int_read=%d\n\n",*(int *)((received_data+receive_data_size-bytes_read_from_server)));
+	    			memcpy(output, &received_data[receive_data_size-bytes_read_from_server], bytes_read_from_server);
 
 	    		}
 
@@ -289,7 +290,7 @@ ssize_t netwrite(int file_desc, const void * input, size_t nbyte){
 		return -1;
 	}
 
-	//Build message with format: "OPERATION,FILE_DESC,NUMBER_OF_BYTES,CONTENT"
+	//Build message with format: "OPERATION,FILE_DESC,NUMBER_OF_BYTES,"CONTENT
 	memset(&buff,0,buff_size);
 	strcat(buff,"3,"); //3 = write
 	char file_desc_buff[file_desc_length+1];
@@ -300,11 +301,10 @@ ssize_t netwrite(int file_desc, const void * input, size_t nbyte){
 	snprintf(nbyte_buff, nbyte_length+1, "%d", (int)nbyte);
 	strcat(buff,nbyte_buff);
 	strcat(buff,",");
-	char temp[nbyte+1];
-	temp[nbyte] = '\0';
-	memcpy(temp,input,nbyte);
-	strcat(buff,temp);
-	buff[buff_size-1] = '\0';
+	
+	memcpy(&buff[buff_size-nbyte],input,nbyte);
+	//printf("int=%d\n",*(int *)((buff+buff_size-nbyte)));
+
 
 	//Get ready to error check
 	errno = 0;
@@ -326,7 +326,7 @@ ssize_t netwrite(int file_desc, const void * input, size_t nbyte){
 	}
 
 	//Attempt to send message to server
-	bytes_sent = write(socket_fd,buff,strlen(buff)+1);
+	bytes_sent = write(socket_fd,buff,buff_size);
 
 	//Data successfully sent
 	if (bytes_sent >= 0) {
@@ -335,7 +335,7 @@ ssize_t netwrite(int file_desc, const void * input, size_t nbyte){
 		received_data[receive_data_size-1] = '\0';
 
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
-		printf("response=|%s|\n",received_data);
+		//printf("response=|%s|\n",received_data);
 		status = received_data[0];
 
 		//Data successfully received
@@ -460,7 +460,7 @@ int netclose(int file_desc) {
 		received_data[receive_data_size-1] = '\0';
 
 		bytes_received = read(socket_fd,received_data,receive_data_size-1);
-		printf("response=|%s|\n",received_data);
+		//printf("response=|%s|\n",received_data);
 		status = received_data[0];
 
 		//Data successfully received
@@ -549,7 +549,8 @@ int netserverinit(char * hostname, int mode){
 
 		if (socket_fd < 0) {
 			perror("Error opening socket");
-			exit(EXIT_FAILURE);
+			freeaddrinfo(infoptr); //free memory from getaddrinfo
+			return -1;
 		}
 
 		//Loop through attempt to create connection
@@ -567,7 +568,9 @@ int netserverinit(char * hostname, int mode){
 	
 		if (connect_resp < 0) {
 			perror("Error connecting");
-			exit(EXIT_FAILURE);
+			h_errno = HOST_NOT_FOUND;
+			freeaddrinfo(infoptr); //free memory from getaddrinfo
+			return -1;
 		}
 		
 		//At this point ready to run other functions.
