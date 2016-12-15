@@ -190,7 +190,7 @@ ssize_t netread(int file_desc, void * output, size_t nbyte){
 		memset(received_data,0,receive_data_size);
 		received_data[receive_data_size-1] = '\0';
 
-		bytes_received = read(socket_fd,received_data,receive_data_size-1);
+		bytes_received = read(socket_fd,received_data,receive_data_size);
 		//printf("response=|%s|\n",received_data);
 		status = received_data[0];
 

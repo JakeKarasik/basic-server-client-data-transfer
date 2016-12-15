@@ -109,11 +109,11 @@ void * thread_worker(data * request_data) {
 					strcat(success_buff,bytes_to_read_buff);
 					strcat(success_buff,",");
 					//strcat(success_buff,read_buffer);
-					memcpy(&success_buff[read_size + 2 + bytes_to_read_length + 1 + 1 - read_resp],read_buffer,(int)read_resp);
+					memcpy(&success_buff[2 + bytes_to_read_length + 1 + 1],read_buffer,(int)read_resp);
 					
 					//printf("int serv=%d\n",*(int *)((read_buffer)));
-					//printf("success_buff=%s\n",success_buff);
-					bytes_sent = write(request_data->client_fd,success_buff,request_data->num_bytes+1+2+bytes_to_read_length+1); //bytes + S + 2 commas + bytestoread + nullterm
+					//printf("success_buff=%d\n",*(int *)(success_buff+1 + bytes_to_read_length + 2 + 1)); // "S" + bytes_to_read_len + 2 commas + nullterm
+					bytes_sent = write(request_data->client_fd,success_buff,read_resp+1+2+bytes_to_read_length+1); //bytes + S + 2 commas + bytes_to_read_len + nullterm
 				}
 				free(read_buffer);
 				free(success_buff);
@@ -210,10 +210,7 @@ int main(int argc, char * argv[]){
 			pthread_exit(NULL);
 		}
 
-		printf("Accepting connection...\n");
-
 		memset(buff,0,READ_SIZE); //Zero out buff and response
-		//buff[READ_SIZE-1] = '\0';
 
 		bytes_received = read(accept_fd,buff,READ_SIZE); //receive data from client
 		
@@ -223,7 +220,7 @@ int main(int argc, char * argv[]){
 			pthread_exit(NULL);
 		}
 
-		printf("bytes_received=%d,content=%s\n",bytes_received, buff);
+		//printf("bytes_received=%d,content=%s\n",bytes_received, buff);
 		
 		//RECEIVE FORMAT
 		//netopen(): "0,FLAG,FILENAME"
@@ -278,8 +275,6 @@ int main(int argc, char * argv[]){
 	    		thread_data->bytes = malloc(atoi(part));
 				thread_data->num_bytes = atoi(part);
 
-				//part = strtok(NULL, ",");
-				//printf("part=%s\n",part);
 				memset(thread_data->bytes,0,thread_data->num_bytes);
 				memcpy(thread_data->bytes,&buff[bytes_received-thread_data->num_bytes],thread_data->num_bytes);
 				//printf("int=%d\n",*(int *)((thread_data->bytes)));

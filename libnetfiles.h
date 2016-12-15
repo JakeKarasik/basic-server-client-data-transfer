@@ -13,6 +13,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define UNRESTRICTED 0
+#define EXCLUSIVE 1
+#define TRANSACTION 2
 #define PORT_NUM 15151
 
 int netopen(const char *, int);
